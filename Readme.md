@@ -7,17 +7,15 @@
 2. [Çözüm: Modular Monolith](#çözüm-modular-monolith)
 3. [Mikroservislerle Karşılaştırma ve Riskler](#mikroservislerle-karşılaştırma-ve-riskler)
 4. [Temel Kavramlar](#temel-kavramlar)
-5. [Mimari Kararlar ve Uygulama Prensipleri](#mimari-kararlar-ve-uygulama-prensipleri)
-    - [1. Host (Program.cs) ve IoC Yönetimi](#1-host-programcs-ve-ioc-yönetimi-project-structure)
+5. [Mimari Katmanlar ve Proje Yapısı](#mimari-katmanlar-ve-proje-yapısı)
+    - [1. Host (Program.cs) ve IoC Yönetimi](#1-host-programcs-ve-ioc-yönetimi)
     - [2. Esnek İç Mimari (Context-Specific Architecture)](#2-esnek-iç-mimari-context-specific-architecture)
     - [3. Ölçeklenebilirlik Çizgisi ve Sınırlar](#3-ölçeklenebilirlik-çizgisi-ve-sınırlar)
-6. [Modüller Arası İletişim Modelleri](#modüller-arası-iletişim-modelleri)
-    - [Senkron İletişim (Synchronous)](#senkron-iletişim-synchronous)
-    - [Asenkron İletişim (Asynchronous)](#asenkron-iletişim-asynchronous)
-    - [Katı İzolasyon ve Vault (Kasa) Yaklaşımı](#katı-izolasyon-ve-vault-kasa-yaklaşımı)
+6. [Modüller Arası İletişim ve İzolasyon Seviyeleri](#modüller-arası-iletişim-ve-izolasyon-seviyeleri)
+    - [Level 1: Senkron İletişim (Synchronous)](#level-1-senkron-iletişim-synchronous)
+    - [Level 2: Asenkron İletişim (Asynchronous)](#level-2-asenkron-iletişim-asynchronous)
+    - [Level 3: Tam İzolasyon ve Vault (Kasa) Yaklaşımı](#level-3-tam-izolasyon-ve-vault-kasa-yaklaşımı)
 7. [Özet: Avantajlar ve Zorluklar](#özet-avantajlar-ve-zorluklar)
-    - [Avantajlar](#avantajlar)
-    - [Zorluklar](#zorluklar)
 8. [Kaynakçalar](#kaynakçalar)
 
 ---
@@ -63,280 +61,84 @@ Martin Fowler'ın da belirttiği gibi, projelere monolith ile başlamak daha gü
 *   **Separation of Concerns (Sorumlulukların Ayrılığı):** Her modülün sadece kendi amacına odaklanmasıdır.
 *   **Contract (Kontrat):** Modüllerin birbiriyle iletişim kurmasını sağlayan Interface veya DTO/Event gibi kurallar bütünüdür.
 
-## Mimari Kararlar ve Uygulama Prensipleri
+## Mimari Katmanlar ve Proje Yapısı
 
-### 1. Host (Program.cs) ve IoC Yönetimi [(Project Structure)](ModularMonolithProject)
+### 1. Host (Program.cs) ve IoC Yönetimi
 
-Tüm modülleri ana `Program.cs` dosyasına yığmak yerine, her modülün kendi bağımlılıklarını yönettiği bir Composition Root yapısı kullanılır.
+Tüm modülleri ana `Program.cs` dosyasına yığmak yerine, her modülün kendi bağımlılıklarını yönettiği bir **Composition Root** yapısı kullanılır. Bu sayede ana proje sadece modülleri ayağa kaldıran bir tetikleyici görevini üstlenir.
 
-*   Her modülün kendi `IServiceCollection` extension metodu olmalıdır.
-*   Ana uygulama sadece modülleri tetikleyen bir orkestra şefi görevini üstlenir.
+*   **Host:** Uygulamanın giriş noktasıdır. Sadece hangi modüllerin kullanılacağını bilir.
+*   **Module Installer:** Her modülün içindeki `IServiceCollection` extension metodudur.
 
- [InventoryModuleInstaller.cs](ModularMonolithProject/src/Modules/InventoryModule/InventoryModuleInstaller.cs) (Inventory Modülü İçinde):
+ [InventoryModuleInstaller.cs](ModularMonolithProject/src/Modules/InventoryModule/InventoryModuleInstaller.cs) (Inventory Modülü):
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
-// Sadece bu modülün içindeki (Internal) sınıfları bilir
-
-namespace InventoryModule.Core;
-
 public static class InventoryModuleInstaller
 {
     public static IServiceCollection AddInventoryModule(this IServiceCollection services, string connectionString)
     {
-        // 1. Modülün kendi veritabanı kaydı
         services.AddDbContext<InventoryDbContext>(options => options.UseSqlServer(connectionString));
-
-        // 2. Modülün kendi servisleri (Dışarıya sadece Interface ile açılır)
         services.AddScoped<IInventoryService, InventoryService>();
-
         return services;
     }
 }
 ```
 
- [Program.cs](ModularMonolithProject/src/Host/Program.cs) (Host Projesi İçinde):
+ [Program.cs](ModularMonolithProject/src/Host/Program.cs) (Host Projesi):
 ```csharp
-using InventoryModule.Core;
-using OrderModule.Core;
-
-var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 // Modüllerin Kendi IoC'lerini (Composition Root) Tetikliyoruz
 builder.Services.AddInventoryModule(connectionString);
 builder.Services.AddOrderModule(connectionString);
-
-var app = builder.Build();
-
-app.Run();
 ```
 
 ### 2. Esnek İç Mimari (Context-Specific Architecture)
 
-Sistemdeki her modül aynı karmaşıklıkta olmayabilir. Bu nedenle modül bazlı farklı yaklaşımlar benimsenebilir:
+Sistemdeki her modül aynı karmaşıklıkta olmayabilir. Modülün iş yüküne göre farklı iç mimariler benimsenebilir:
 
 *   **Basit CRUD Modülleri:** Daha az karmaşık işler için doğrudan Service/Repository pattern kullanılabilir.
-*   **Karmaşık İş Modülleri:** Yoğun iş kuralı içeren alanlarda Vertical Slice Architecture, CQRS veya Domain Driven Design (DDD) uygulanabilir.
+*   **Vertical Slice Architecture:** Yoğun iş kuralı içeren alanlarda Feature bazlı (Command/Query) bir yapı uygulanabilir.
 
-[CreateOrderHandler.cs](Modules/OrderModule/Features/CreateOrder/CreateOrderHandler.cs) [(Modules Projesi)](Modules)
+[ProductService.cs](Modules/CatalogModule/Services/ProductService.cs) (Basit CRUD Örneği):
 ```csharp
-using MediatR; // Veya kullandığınız başka bir dispatcher
-
-namespace OrderModule.Features.CreateOrder;
-
-// Sadece sipariş oluşturma işleminin Command'ı
-public record CreateOrderCommand(int ProductId, int Quantity, string UserId) : IRequest<bool>;
-
-// Sadece sipariş oluşturma işleminin Handler'ı (İş Mantığı)
-internal sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, bool>
-{
-    private readonly OrderDbContext _dbContext;
-    // Özel repository'ler, event publisher'lar buraya inject edilir.
-
-    public CreateOrderHandler(OrderDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
-    public async Task<bool> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
-    {
-        // 1. İş kuralları (Validation, Stok kontrolü vs.)
-        // 2. Siparişin veritabanına yazılması
-        var order = new Order(request.ProductId, request.Quantity, request.UserId);
-        _dbContext.Orders.Add(order);
-        
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
+internal sealed class ProductService : IProductService { /* Standart CRUD metotları */ }
 ```
 
-[ProductService.cs](Modules/CatalogModule/Services/ProductService.cs) [(Modules Projesi)](Modules)
+[CreateOrderHandler.cs](Modules/OrderModule/Features/CreateOrder/CreateOrderHandler.cs) (Vertical Slice/CQRS Örneği):
 ```csharp
-namespace CatalogModule.Services;
-
-// Sadece basit CRUD işlemleri yapan standart bir servis
-internal sealed class ProductService : IProductService
-{
-    private readonly CatalogDbContext _dbContext;
-
-    public ProductService(CatalogDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
-    public async Task<ProductDto> GetProductAsync(int id)
-    {
-        var product = await _dbContext.Products.FindAsync(id);
-        return new ProductDto(product.Id, product.Name, product.Price);
-    }
-
-    public async Task CreateProductAsync(CreateProductDto request)
-    {
-        _dbContext.Products.Add(new Product { Name = request.Name, Price = request.Price });
-        await _dbContext.SaveChangesAsync();
-    }
-}
+internal sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, bool> { /* İş mantığı buradadır */ }
 ```
 
 ### 3. Ölçeklenebilirlik Çizgisi ve Sınırlar
 
-Modular Monolith yatay ölçeklendirmede (Horizontal Scaling) bir bütün olarak hareket eder. Eğer sadece 'Sipariş' modülüne yük biniyorsa, tüm uygulamayı (diğer tüm modüllerle birlikte) çoğaltmak zorunda kalırsınız.
+Modular Monolith yatay ölçeklendirmede bir bütün olarak hareket eder. Ancak ileride modül bazlı bağımsız ölçekleme kesin bir ihtiyaç olursa, o noktada modül mikroservise dönüştürülmelidir.
 
-Bu, bir noktada kaynak israfına neden olabilir. Eğer ileride modül bazlı bağımsız ölçekleme kesin bir ihtiyaç olacaksa, o noktada modül mikroservise dönüştürülmelidir.
+<img src="assets/olceklenebilirlik-scalability-konusundaki-kesin-cizgi-1.png" width="45%" /> <img src="assets/olceklenebilirlik-scalability-konusundaki-kesin-cizgi-2.png" width="45%" />
 
-<img src="assets/olceklenebilirlik-scalability-konusundaki-kesin-cizgi-1.png" width="50%" />
-<img src="assets/olceklenebilirlik-scalability-konusundaki-kesin-cizgi-2.png" width="50%" />
+## Modüller Arası İletişim ve İzolasyon Seviyeleri
 
-## Modüller Arası İletişim Modelleri
+### Level 1: Senkron İletişim (Synchronous)
 
-### Senkron İletişim (Synchronous)
+Modüllerin birbirini bellek içi (in-memory) interface çağrıları üzerinden çağırdığı modeldir. Hızlıdır ancak sıkı bağlılık (strong coupling) yaratır.
 
-Modüllerin birbirini bellek içi (in-memory) metot çağrıları üzerinden çağırdığı modeldir.
+![alt text](assets/senkron-iletisim-synchronous-1.png)
 
-*   **Avantaj:** Muazzam hız ve düşük gecikme.
-*   **Dezavantaj:** Sıkı bağlılık (Bir modül çökerse diğeri de etkilenebilir).
+*   [IInventoryService.cs](MyModularMonolith/01-Synchronous/Shared/Contracts/IInventoryService.cs) (Kontrat)
+*   [InventoryService.cs](MyModularMonolith/01-Synchronous/Modules/InventoryModule/Services/InventoryService.cs) (Uygulama)
 
-![alt text](senkron-iletisim-synchronous-1.png)
+### Level 2: Asenkron İletişim (Asynchronous)
 
-[IInventoryService.cs](MyModularMonolith/01-Synchronous/Shared/Contracts/IInventoryService.cs) - [Proje Dosyası](MyModularMonolith/01-Synchronous)
-```csharp
-namespace Shared.Contracts;
+Message Broker (RabbitMQ vb.) üzerinden mesaj fırlatarak (Publish/Subscribe) kurulan iletişimdir. Tam gevşek bağlılık (loose coupling) sağlar.
 
-public interface IInventoryService
-{
-    bool CheckStock(Guid productId, int quantity);
-}
-```
+![alt text](assets/asenkron-iletisim-asynchronous.png)
 
-[InventoryService.cs](MyModularMonolith/01-Synchronous/Modules/InventoryModule/Services/InventoryService.cs) - [Proje Dosyası](MyModularMonolith/01-Synchronous)
-```csharp
-using Shared.Contracts;
+*   [OrderCreatedEvent.cs](MyModularMonolith/02-Asynchronous/Shared/IntegrationEvents/OrderCreatedEvent.cs) (Olay)
+*   [OrderCreatedEventHandler.cs](MyModularMonolith/02-Asynchronous/Modules/InventoryModule/EventHandlers/OrderCreatedEventHandler.cs) (Tüketici)
 
-namespace InventoryModule.Services;
+### Level 3: Tam İzolasyon ve Vault (Kasa) Yaklaşımı
 
-internal class InventoryService : IInventoryService
-{
-    public bool CheckStock(Guid productId, int quantity)
-    {
-        return true;
-    }
-}
-```
-[CreateOrderHandler.cs](MyModularMonolith/01-Synchronous/Modules/OrderModule/Features/CreateOrderHandler.cs) - [Proje Dosyası](MyModularMonolith/01-Synchronous)
-```csharp
-using Shared.Contracts;
+Modüller arası sınırları sadece disiplinle değil, teknik engellerle de (Internal access modifiers) koruma modelidir. Modülün iç mantığı tamamen gizlidir, sadece API katmanı dışarıya açılır.
 
-namespace OrderModule.Features;
-
-public class CreateOrderHandler
-{
-    private readonly IInventoryService _inventoryService;
-
-    public CreateOrderHandler(IInventoryService inventoryService)
-    {
-        _inventoryService = inventoryService;
-    }
-
-    public void Handle(Guid productId, int quantity)
-    {
-        if(!_inventoryService.CheckStock(productId, quantity))
-            throw new Exception("Out of stock");
-
-        Console.WriteLine("Order created.");
-    }
-}
-
-```
-### Asenkron İletişim (Asynchronous)
-
-Message Broker (RabbitMQ vb.) üzerinden mesaj fırlatarak (Publish/Subscribe) kurulan iletişimdir.
-
-*   **Avantaj:** Tam gevşek bağlılık ve yüksek erişilebilirlik.
-*   **Dezavantaj:** Sistem karmaşıklığında ve operasyonel maliyette artış.
-
-![alt text](asenkron-iletisim-asynchronous.png)
-
-[OrderCreatedEvent.cs](MyModularMonolith/02-Asynchronous/Shared/IntegrationEvents/OrderCreatedEvent.cs) - [Proje Dosyası](MyModularMonolith/02-Asynchronous)
-```csharp
-namespace Shared.IntegrationEvents;
-
-public record OrderCreatedEvent(Guid ProductId, int Quantity);
-```
-
-[CreateOrderHandler.cs](MyModularMonolith/02-Asynchronous/Modules/OrderModule/Features/CreateOrderHandler.cs)  - [Proje Dosyası](MyModularMonolith/02-Asynchronous)
-```csharp
-using Shared.IntegrationEvents;
-
-namespace OrderModule.Features;
-
-public class CreateOrderHandler
-{
-    public OrderCreatedEvent Handle(Guid productId, int quantity)
-    {
-        Console.WriteLine("Order created.");
-        return new OrderCreatedEvent(productId, quantity);
-    }
-}
-```
-
-[OrderCreatedEventHandler.cs](MyModularMonolith/02-Asynchronous/Modules/InventoryModule/EventHandlers/OrderCreatedEventHandler.cs)  - [Proje Dosyası](MyModularMonolith/02-Asynchronous)
-```csharp
-using Shared.IntegrationEvents;
-
-namespace InventoryModule.EventHandlers;
-
-public class OrderCreatedEventHandler
-{
-    public void Handle(OrderCreatedEvent @event)
-    {
-        Console.WriteLine("Stock decreased asynchronously.");
-    }
-}
-```
-
-### Katı İzolasyon ve Vault (Kasa) Yaklaşımı
-
-Modüller arası sınırları korumak disiplin kadar teknik engellerle de sağlanmalıdır.
-
-*   **Kural:** Modülün iç mantığı (Domain, Data Access) internal tutulmalı, sadece kontratlar public olmalıdır.
-*   **Vault:** Roslyn Analyzer'lar kullanılarak bir modülün diğerinin iç detaylarına erişmesi derleme anında (Build-time) engellenmelidir.
-
-[CheckStockUseCase.cs](MyModularMonolith/03-Vault/src/Modules/Module.Inventory.Api/CheckStockUseCase.cs) - [Proje Dosyası](MyModularMonolith/03-Vault)
-```csharp
-namespace Module.Inventory.Api;
-
-public record CheckStockUseCase(Guid ProductId, int Quantity);
-```
-
-[CreateOrderHandler.cs](MyModularMonolith/03-Vault/src/Modules/Module.Order/Features/CreateOrderHandler.cs) - [Proje Dosyası](MyModularMonolith/03-Vault)
-```csharp
-using Module.Inventory.Api;
-
-namespace Module.Order.Features;
-
-public class CreateOrderHandler
-{
-    public void Handle(CheckStockUseCase useCase)
-    {
-        Console.WriteLine("Order module only knows API contract.");
-    }
-}
-```
-[CheckStockHandler.cs](MyModularMonolith/03-Vault/src/Modules/Module.Inventory/Features/CheckStockHandler.cs) - [Proje Dosyası](MyModularMonolith/03-Vault)
-```csharp
-using Module.Inventory.Api;
-
-namespace Module.Inventory.Features;
-
-internal class CheckStockHandler
-{
-    internal bool Handle(CheckStockUseCase request)
-    {
-        return true;
-    }
-}
-```
+*   [CheckStockUseCase.cs](MyModularMonolith/03-Vault/src/Modules/Module.Inventory.Api/CheckStockUseCase.cs) (Kontrat)
+*   [CheckStockHandler.cs](MyModularMonolith/03-Vault/src/Modules/Module.Inventory/Features/CheckStockHandler.cs) (Gizli İç Mantık)
 ## Özet: Avantajlar ve Zorluklar
 
 ### Avantajlar
@@ -351,7 +153,7 @@ internal class CheckStockHandler
 *   **Tek Hata Noktası:** Bir modüldeki kritik hata tüm süreci durdurabilir.
 
 
-![alt text](modular_monolith.png)
+![alt text](assets/modular_monolith.png)
 ## Kaynakçalar
 
 *   https://serhatleventyavas.dev/monolitik-mimarinin-gucu-ve-sinirlari-mikroservislere-gecisin-ilk-adimi
