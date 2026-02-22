@@ -50,7 +50,6 @@ Tüm modülleri ana `Program.cs` dosyasına yığmak yerine, her modülün kendi
 *   Ana uygulama sadece modülleri tetikleyen bir orkestra şefi görevini üstlenir.
 
  [InventoryModuleInstaller.cs](ModularMonolithProject/src/Modules/InventoryModule/InventoryModuleInstaller.cs) (Inventory Modülü İçinde):
-<!-- ![alt text](image-1.png) -->
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 // Sadece bu modülün içindeki (Internal) sınıfları bilir
@@ -96,15 +95,17 @@ Sistemdeki her modül aynı karmaşıklıkta olmayabilir. Bu nedenle modül bazl
 *   **Basit CRUD Modülleri:** Daha az karmaşık işler için doğrudan Service/Repository pattern kullanılabilir.
 *   **Karmaşık İş Modülleri:** Yoğun iş kuralı içeren alanlarda Vertical Slice Architecture, CQRS veya Domain Driven Design (DDD) uygulanabilir.
 
+![alt text](assets/modul-icinde-farkli-mimarilere-izin-vermek-1.png)
+![alt text](assets/modul-icinde-farkli-mimarilere-izin-vermek-2.png)
 ### 3. Katı İzolasyon ve Vault (Kasa) Yaklaşımı
 
 Modüller arası sınırları korumak disiplin kadar teknik engellerle de sağlanmalıdır.
 
 *   **Kural:** Modülün iç mantığı (Domain, Data Access) internal tutulmalı, sadece kontratlar public olmalıdır.
 *   **Vault:** Roslyn Analyzer'lar kullanılarak bir modülün diğerinin iç detaylarına erişmesi derleme anında (Build-time) engellenmelidir.
-
-[KOD BLOĞU: Roslyn Analyzer veya benzeri bir yöntemle izolasyonun nasıl sağlandığını gösteren örnek]
-
+![alt text](assets/vault-kasa-mimarisi-klasor-yapisi-strict-isolation-1.png)
+![alt text](assets/vault-kasa-mimarisi-klasor-yapisi-strict-isolation-2.png)
+![alt text](assets/vault-kasa-mimarisi-klasor-yapisi-strict-isolation-3.png)
 ## Modüller Arası İletişim Modelleri
 
 ### Senkron İletişim (Synchronous)
@@ -114,7 +115,7 @@ Modüllerin birbirini bellek içi (in-memory) metot çağrıları üzerinden ça
 *   **Avantaj:** Muazzam hız ve düşük gecikme.
 *   **Dezavantaj:** Sıkı bağlılık (Bir modül çökerse diğeri de etkilenebilir).
 
-[DİYAGRAM: Interface'ler üzerinden doğrudan metod çağrımını gösteren senkron iletişim diyagramı]
+![alt text](senkron-iletisim-synchronous-1.png)
 
 ### Asenkron İletişim (Asynchronous)
 
@@ -123,7 +124,7 @@ Message Broker (RabbitMQ vb.) üzerinden mesaj fırlatarak (Publish/Subscribe) k
 *   **Avantaj:** Tam gevşek bağlılık ve yüksek erişilebilirlik.
 *   **Dezavantaj:** Sistem karmaşıklığında ve operasyonel maliyette artış.
 
-[DİYAGRAM: Message Broker kullanarak kurulan asenkron iletişim akışı]
+![alt text](asenkron-iletisim-asynchronous.png)
 
 ## Ölçeklenebilirlik Çizgisi ve Sınırlar
 
@@ -131,7 +132,8 @@ Modular Monolith yatay ölçeklendirmede (Horizontal Scaling) bir bütün olarak
 
 Bu, bir noktada kaynak israfına neden olabilir. Eğer ileride modül bazlı bağımsız ölçekleme kesin bir ihtiyaç olacaksa, o noktada modül mikroservise dönüştürülmelidir.
 
-[KOD BLOĞU: Docker-compose üzerinde uygulamanın bütün olarak ölçeklendiğini gösteren örnek yapı]
+![alt text](assets/olceklenebilirlik-scalability-konusundaki-kesin-cizgi-1.png)
+![alt text](assets/olceklenebilirlik-scalability-konusundaki-kesin-cizgi-2.png)
 
 ## Özet: Avantajlar ve Zorluklar
 
