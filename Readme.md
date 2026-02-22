@@ -1,5 +1,28 @@
 # Modular Monolith Architecture
 
+## İçindekiler
+
+1. [Giriş ve Motivasyon](#giriş-ve-motivasyon)
+    - [Monolith Mimarinin Zorlukları](#monolith-mimarinin-zorlukları)
+2. [Çözüm: Modular Monolith](#çözüm-modular-monolith)
+3. [Mikroservislerle Karşılaştırma ve Riskler](#mikroservislerle-karşılaştırma-ve-riskler)
+4. [Temel Kavramlar](#temel-kavramlar)
+5. [Mimari Kararlar ve Uygulama Prensipleri](#mimari-kararlar-ve-uygulama-prensipleri)
+    - [1. Host (Program.cs) ve IoC Yönetimi](#1-host-programcs-ve-ioc-yönetimi-project-structure)
+    - [2. Esnek İç Mimari (Context-Specific Architecture)](#2-esnek-iç-mimari-context-specific-architecture)
+    - [3. Ölçeklenebilirlik Çizgisi ve Sınırlar](#3-ölçeklenebilirlik-çizgisi-ve-sınırlar)
+6. [Modüller Arası İletişim Modelleri](#modüller-arası-iletişim-modelleri)
+    - [Senkron İletişim (Synchronous)](#senkron-iletisim-synchronous)
+    - [Asenkron İletişim (Asynchronous)](#asenkron-iletisim-asynchronous)
+    - [Katı İzolasyon ve Vault (Kasa) Yaklaşımı](#katı-izolasyon-ve-vault-kasa-yaklaşımı)
+7. [Özet: Avantajlar ve Zorluklar](#özet-avantajlar-ve-zorluklar)
+    - [Avantajlar](#avantajlar)
+    - [Zorluklar](#zorluklar)
+8. [Kaynakçalar](#kaynakçalar)
+
+---
+
+
 ## Giriş ve Motivasyon
 
 Yazılım dünyasında genellikle monolith yapılarla başlayan süreçler, katmanlı mimari ve ardından Clean Architecture ile devam eder. Dış bağımlılıkların artması ve farklı veri kaynağı ihtiyaçları gibi sebeplerle mikroservis mimarisine geçiş popüler bir seçenek olsa da, bu geçişin getirdiği karmaşıklık çoğu zaman projenin erken aşamalarında yönetilemez hale gelir.
